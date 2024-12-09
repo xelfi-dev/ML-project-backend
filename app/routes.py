@@ -3,7 +3,9 @@ from datetime import datetime
 import random
 from . import db
 from .models import Transaction, Product
-from .utils import calculate_rfm
+from .utils import calculate_rfm, recommend_products
+import pickle
+import os
 
 main_bp = Blueprint('main', __name__)
 
@@ -89,3 +91,24 @@ def get_items():
         return jsonify({"items": product_descriptions}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+@main_bp.route('/get_recommendations/<int:user_id>', methods=['GET'])
+def get_recommendations(user_id):
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(current_dir, 'collaborative_filtering_model.pkl')
+    try:
+        with open(model_path, 'rb') as file:
+            model = pickle.load(file)
+        print("Model loaded successfully.")
+    except Exception as e:
+        model = None
+        print(f"Error loading model: {e}")
+    try:
+        # Get the top 5 recommended products for the user
+        recommended_products = recommend_products(model, user_id, top_n=5)
+
+        # Return the recommendations as JSON
+        return jsonify({"recommendations": recommended_products}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

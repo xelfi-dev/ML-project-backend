@@ -44,3 +44,46 @@ def calculate_rfm(customer_id):
 
     except Exception as e:
         return {"error": str(e)}
+
+
+def recommend_products(model, user_id, top_n=3):
+    try:
+        # Get all unique product IDs from the Product table
+        all_items = db.session.execute(
+            text("SELECT \"StockCode\" FROM products")
+        ).fetchall()
+        all_items = [item.StockCode for item in all_items]
+
+        # Get all items the user has already interacted with
+        user_rated_items = db.session.execute(
+            text("SELECT \"StockCode\" FROM transactions WHERE \"CustomerID\" = :user_id"),
+            {'user_id': user_id}
+        ).fetchall()
+        user_rated_items = [item.StockCode for item in user_rated_items]
+
+        # Filter items not yet interacted with by the user
+        items_to_predict = [item for item in all_items if item not in user_rated_items]
+
+        # Predict ratings for each item the user hasn't interacted with
+        predictions = [model.predict(user_id, item) for item in items_to_predict]
+
+        # Sort predictions by estimated rating in descending order
+        predictions = sorted(predictions, key=lambda x: x.est, reverse=True)
+
+        # Get the top N predictions
+        top_predictions = predictions[:top_n]
+
+        # Get product descriptions for the recommended items
+        recommended_products = []
+        for pred in top_predictions:
+            product = db.session.execute(
+                text("SELECT \"Description\" FROM products WHERE \"StockCode\" = :stock_code"),
+                {'stock_code': pred.iid}
+            ).fetchone()
+            if product:
+                recommended_products.append(product.Description)
+
+        return recommended_products
+
+    except Exception as e:
+        return {"error": str(e)}
